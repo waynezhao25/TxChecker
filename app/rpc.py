@@ -2,6 +2,7 @@ from web3 import Web3
 from app.config import EXPECTED_CHAIN_ID, RPC_TIMEOUT_SECONDS, RPC_URL
 import re
 from web3.exceptions import TransactionNotFound
+from app.models import TransactionData
 
 w3 = Web3(Web3.HTTPProvider(
     RPC_URL, 
@@ -25,6 +26,32 @@ def fetch_tx(tx_hash: str):
 
     return w3.eth.get_transaction(tx_hash)
 
+def fetch_receipt(tx_hash: str):
+    return w3.eth.get_transaction_receipt(tx_hash)
+
+def tx_data_builder(tx, receipt, chain_id: int,) -> TransactionData:
+    status = "unknown"
+
+    if receipt is not None:
+        if receipt["status"] == 1:
+            status = "success"
+        elif receipt["status"] == 0:
+            status = "reverted"
+
+    return TransactionData(
+        tx_hash = Web3.to_hex(tx["hash"]),
+        chain_id = chain_id,
+        from_address = tx["from"],
+        to_address = tx["to"],
+        val_wei = tx["value"],
+        block_hash = Web3.to_hex(tx["blockHash"]) if tx["blockHash"] is not None else None,
+        block_number = tx["blockNumber"],
+        gas_used = receipt["gasUsed"] if receipt is not None else None,
+        status = status,
+        
+        input_data = Web3.to_hex(tx["input"]),
+    )
+
 if __name__ == "__main__":
     chain_id = check_connection()
     print(f"Connected, Chain ID: {chain_id}")
@@ -38,7 +65,17 @@ if __name__ == "__main__":
     except TransactionNotFound:
         print(f"Transaction was not found")
 
+
     else:
+        try:
+            receipt = fetch_receipt(tx_hash)
+        except TransactionNotFound:
+            receipt = None
+        transaction = tx_data_builder(tx, receipt, chain_id)
+        # turns model into readable JSON for FastAPI endpoint
+        print(transaction.model_dump_json(indent=2))
+
+
         print("From:", tx["from"])
         print("To:", tx["to"])
         print("Value in wei:", tx["value"])
@@ -46,3 +83,23 @@ if __name__ == "__main__":
         print("Block:", tx["blockNumber"])
         print("Input data:", Web3.to_hex(tx["input"]))
 
+        try:
+            receipt = fetch_receipt(tx_hash)
+        except TransactionNotFound:
+            print("Receipt is unavailable")
+        else:
+            status = receipt["status"]
+
+            if status == 1:
+                print("Status: Success")
+            elif status == 0:
+                print("Status: Reverted")
+            else:
+                print("Status: Unknown")
+
+        print("Amount of Gas used:", receipt["gasUsed"])
+        print("Block number:", receipt["blockNumber"])
+        print("Event logs:", receipt["logs"])
+
+        if receipt["contractAddress"] is not None:
+            print("Contract created:", receipt["contractAddress"])
