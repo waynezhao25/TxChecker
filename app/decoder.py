@@ -138,7 +138,7 @@ def decode_input(input_data: str | bytes, *, is_contract_creation: bool = False)
     )
 
 
-def decode_transaction(transaction: "TransactionData") -> DecodedInput:
+def decode_tx(transaction: "TransactionData") -> DecodedInput:
     """Decode a normalized transaction without modifying it or fetching data."""
     return decode_input(
         transaction.input_data,

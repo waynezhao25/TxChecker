@@ -3,6 +3,11 @@ from app.config import EXPECTED_CHAIN_ID, RPC_TIMEOUT_SECONDS, RPC_URL
 import re
 from web3.exceptions import TransactionNotFound
 from app.models import TransactionData
+from app.decoder import decode_tx
+import json
+from app.rules.unlimited_approval import check_unlimited_approval
+from app.rules.flagged_spender import check_flagged_spender
+from app.rules.watchlist import FLAGGED_SPENDERS
 
 w3 = Web3(Web3.HTTPProvider(
     RPC_URL, 
@@ -72,34 +77,17 @@ if __name__ == "__main__":
         except TransactionNotFound:
             receipt = None
         transaction = tx_data_builder(tx, receipt, chain_id)
-        # turns model into readable JSON for FastAPI endpoint
-        print(transaction.model_dump_json(indent=2))
+        decoded = decode_tx(transaction)
+        findings = []
+        for finding in (
+            check_unlimited_approval(transaction, decoded),
+            check_flagged_spender(transaction, decoded, FLAGGED_SPENDERS),
+        ):
+            if finding is not None:
+                findings.append(finding.model_dump(mode="json"))
 
-
-        print("From:", tx["from"])
-        print("To:", tx["to"])
-        print("Value in wei:", tx["value"])
-        print("Value in ETH:", Web3.from_wei(tx["value"], "ether"))
-        print("Block:", tx["blockNumber"])
-        print("Input data:", Web3.to_hex(tx["input"]))
-
-        try:
-            receipt = fetch_receipt(tx_hash)
-        except TransactionNotFound:
-            print("Receipt is unavailable")
-        else:
-            status = receipt["status"]
-
-            if status == 1:
-                print("Status: Success")
-            elif status == 0:
-                print("Status: Reverted")
-            else:
-                print("Status: Unknown")
-
-        print("Amount of Gas used:", receipt["gasUsed"])
-        print("Block number:", receipt["blockNumber"])
-        print("Event logs:", receipt["logs"])
-
-        if receipt["contractAddress"] is not None:
-            print("Contract created:", receipt["contractAddress"])
+        print(json.dumps({
+            "transaction": transaction.model_dump(mode="json"),
+            "decoded_input": decoded.model_dump(mode="json"),
+            "findings": findings,
+        }, indent=2))
