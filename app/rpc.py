@@ -5,14 +5,18 @@ from web3.exceptions import TransactionNotFound
 from app.models import TransactionData
 from app.decoder import decode_tx
 import json
+
 from app.rules.unlimited_approval import check_unlimited_approval
 from app.rules.flagged_spender import check_flagged_spender
 from app.rules.watchlist import FLAGGED_SPENDERS
+from app.rules.failed_transaction import check_failed_tx
+from app.cache import TTLCache
 
 w3 = Web3(Web3.HTTPProvider(
     RPC_URL, 
     request_kwargs={ "timeout": RPC_TIMEOUT_SECONDS },
     ))
+transaction_cache = TTLCache(max_size=100, ttl_seconds=60)
 
 def check_connection() -> int:
     chain_id = w3.eth.chain_id
@@ -33,6 +37,26 @@ def fetch_tx(tx_hash: str):
 
 def fetch_receipt(tx_hash: str):
     return w3.eth.get_transaction_receipt(tx_hash)
+
+
+def get_transaction_data(tx_hash:str, chain_id:int) -> TransactionData:
+    tx_hash = tx_hash.strip().lower()
+    key = f"{chain_id}:{tx_hash}"
+    cached = transaction_cache.get(key)
+    if cached is not None:
+        return cached
+
+    tx = fetch_tx(tx_hash)
+    try: 
+        receipt = fetch_receipt(tx_hash)
+    except TransactionNotFound:
+        receipt = None
+
+    transaction = tx_data_builder(tx, receipt, chain_id)
+    if receipt is not None and transaction.block_number is not None:
+        transaction_cache.set(key, transaction)
+
+    return transaction
 
 def tx_data_builder(tx, receipt, chain_id: int,) -> TransactionData:
     status = "unknown"
@@ -55,7 +79,7 @@ def tx_data_builder(tx, receipt, chain_id: int,) -> TransactionData:
         status = status,
         
         input_data = Web3.to_hex(tx["input"]),
-    )
+    )    
 
 if __name__ == "__main__":
     chain_id = check_connection()
@@ -64,24 +88,22 @@ if __name__ == "__main__":
     tx_hash = input("Enter a transaction hash: ").strip()
 
     try:
-        tx = fetch_tx(tx_hash)
+        transaction = get_transaction_data(tx_hash, chain_id)
     except ValueError:
         print(f"Invalid input")
     except TransactionNotFound:
         print(f"Transaction was not found")
 
+    else: 
+        transaction = get_transaction_data(tx_hash, chain_id)
+        print("Cache stats:", transaction_cache.stats())
 
-    else:
-        try:
-            receipt = fetch_receipt(tx_hash)
-        except TransactionNotFound:
-            receipt = None
-        transaction = tx_data_builder(tx, receipt, chain_id)
         decoded = decode_tx(transaction)
         findings = []
         for finding in (
             check_unlimited_approval(transaction, decoded),
             check_flagged_spender(transaction, decoded, FLAGGED_SPENDERS),
+            check_failed_tx(transaction)
         ):
             if finding is not None:
                 findings.append(finding.model_dump(mode="json"))

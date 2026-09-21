@@ -2,6 +2,7 @@ from enum import Enum
 from typing import Literal
 from pydantic import BaseModel, Field
 
+
 # pydantic is used to set data type constraints
 class TransactionData(BaseModel):
     tx_hash: str
@@ -16,6 +17,7 @@ class TransactionData(BaseModel):
 
     input_data: str
     function_name: str | None = None
+
 
 class Severity(str, Enum):
     # INFO: Informational, useful information, no security warning
