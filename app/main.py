@@ -51,3 +51,7 @@ def analyze(tx_hash: str):
         "decoded_input": decoded.model_dump(mode="json"),
         "findings": findings,
     }
+
+from mangum import Mangum
+
+handler = Mangum(app)

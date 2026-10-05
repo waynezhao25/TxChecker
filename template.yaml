@@ -1,0 +1,26 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Parameters:
+  RpcUrl:
+    Type: String
+    NoEcho: true
+
+Resources:
+  TxCheckerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.main.handler
+      CodeUri: .
+      MemorySize: 512
+      Timeout: 15
+      Environment:
+        Variables:
+          RPC_URL: !Ref RpcUrl
+      FunctionUrlConfig:
+        AuthType: NONE
+
+Outputs:
+  ApiUrl:
+    Value: !GetAtt TxCheckerFunctionUrl.FunctionUrl
