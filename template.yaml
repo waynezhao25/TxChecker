@@ -18,9 +18,30 @@ Resources:
       Environment:
         Variables:
           RPC_URL: !Ref RpcUrl
+          TABLE_NAME: !Ref TxCheckerTable  # tells the Python code which table to use
+      Policies:
+        # SAM shortcut: read/write/delete items on this one table only
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TxCheckerTable
       FunctionUrlConfig:
         AuthType: NONE
+
+  TxCheckerTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST     # on-demand: no capacity to plan, pay per request
+      AttributeDefinitions:
+        - AttributeName: pk            # only key attributes are declared up front
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk            # e.g. "TX#1#0xabc..." (later: "WATCH#1#0xdef...")
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expires_at      # optional epoch seconds; DynamoDB deletes the item after it
+        Enabled: true
 
 Outputs:
   ApiUrl:
     Value: !GetAtt TxCheckerFunctionUrl.FunctionUrl
+  TableName:
+    Value: !Ref TxCheckerTable
