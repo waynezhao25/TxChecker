@@ -4,3 +4,4 @@ web3
 python-dotenv
 pytest
 mangum
+boto3

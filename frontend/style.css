@@ -1,0 +1,42 @@
+body {
+  max-width: 700px;
+  margin: 40px auto;
+  padding: 0 16px;
+  font-family: sans-serif;
+}
+
+form {
+  display: flex;
+  gap: 8px;
+}
+
+input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px;
+}
+
+button {
+  padding: 8px 16px;
+}
+
+.box {
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 12px;
+  margin-top: 12px;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.warning {
+  background: #fff4d6;
+}
+
+.info {
+  background: #e6efff;
+}
+
+.danger {
+  background: #ffe1e1;
+}
